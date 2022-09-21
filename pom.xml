@@ -21,7 +21,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.github.luyomo.kafka.connect.transform</groupId>
-    <artifactId>tidb-transform</artifactId>
+    <artifactId>TiDBTransform</artifactId>
     <version>1.0-SNAPSHOT</version>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

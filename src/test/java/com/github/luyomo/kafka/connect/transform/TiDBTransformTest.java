@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.github.luyomo.kafka.connect.tidb;
+package com.github.luyomo.kafka.connect.transform;
 
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.data.Schema;
@@ -31,9 +31,9 @@ import java.util.Map;
 
 import static org.junit.Assert.*;
 
-public class TiDBTest {
+public class TiDBTransformTest {
 
-  private TiDB<SourceRecord> xform = new TiDB.Value<>();
+  private TiDBTransform<SourceRecord> xform = new TiDBTransform.Value<>();
 
   @After
   public void tearDown() throws Exception {
@@ -42,7 +42,7 @@ public class TiDBTest {
 
   @Test(expected = DataException.class)
   public void topLevelStructRequired() {
-    xform.configure(Collections.singletonMap("uuid.field.name", "myUuid"));
+    xform.configure(Collections.singletonMap("field.name", "t_bit"));
     xform.apply(new SourceRecord(null, null, "", 0, Schema.INT32_SCHEMA, 42));
   }
 
@@ -51,7 +51,7 @@ public class TiDBTest {
     final Map<String, Object> props = new HashMap<>();
     System.out.println("\n\n\n\nHello world in the copySchemaAndTiDBField \n\n\n");
 
-    props.put("uuid.field.name", "myUuid");
+    props.put("field.name", "t_bit");
 
     xform.configure(props);
 
@@ -74,8 +74,8 @@ public class TiDBTest {
 
     assertEquals(Schema.OPTIONAL_INT64_SCHEMA, transformedRecord.valueSchema().field("magic").schema());
     assertEquals(42L, ((Struct) transformedRecord.value()).getInt64("magic").longValue());
-    assertEquals(Schema.STRING_SCHEMA, transformedRecord.valueSchema().field("myUuid").schema());
-    assertNotNull(((Struct) transformedRecord.value()).getString("myUuid"));
+    assertEquals(Schema.STRING_SCHEMA, transformedRecord.valueSchema().field("t_bit").schema());
+    assertNotNull(((Struct) transformedRecord.value()).getString("t_bit"));
 
     // Exercise caching
     final SourceRecord transformedRecord2 = xform.apply(
@@ -88,7 +88,7 @@ public class TiDBTest {
   public void schemalessTiDBField() {
     final Map<String, Object> props = new HashMap<>();
 
-    props.put("uuid.field.name", "myUuid");
+    props.put("field.name", "t_bit");
 
     xform.configure(props);
 
@@ -97,7 +97,7 @@ public class TiDBTest {
 
     final SourceRecord transformedRecord = xform.apply(record);
     assertEquals(42L, ((Map) transformedRecord.value()).get("magic"));
-    assertNotNull(((Map) transformedRecord.value()).get("myUuid"));
+    assertNotNull(((Map) transformedRecord.value()).get("t_bit"));
 
   }
 }

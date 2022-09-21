@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.github.luyomo.kafka.connect.tidb;
+package com.github.luyomo.kafka.connect.transform;
 
 import org.apache.kafka.common.cache.Cache;
 import org.apache.kafka.common.cache.LRUCache;
@@ -40,23 +40,25 @@ import java.util.UUID;
 import static org.apache.kafka.connect.transforms.util.Requirements.requireMap;
 import static org.apache.kafka.connect.transforms.util.Requirements.requireStruct;
 
-public abstract class TiDB<R extends ConnectRecord<R>> implements Transformation<R> {
-  private static final Logger logger = LoggerFactory.getLogger(TiDB.class);
+public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Transformation<R> {
+  private static final Logger logger = LoggerFactory.getLogger(TiDBTransform.class);
 
   public static final String OVERVIEW_DOC =
-    "Insert a random UUID into a connect record";
+    "Cast the data type from TiDB to downstream";
 
   private interface ConfigName {
-    String UUID_FIELD_NAME = "uuid.field.name";
+    String FIELD_NAME = "field.name";
+    String CAST_TYPE = "type";
   }
 
   public static final ConfigDef CONFIG_DEF = new ConfigDef()
-    .define(ConfigName.UUID_FIELD_NAME, ConfigDef.Type.STRING, "uuid", ConfigDef.Importance.HIGH,
-      "Field name for UUID");
+    .define(ConfigName.FIELD_NAME, ConfigDef.Type.STRING, ConfigDef.NO_DEFAULT_VALUE, ConfigDef.Importance.HIGH, "Field name for conversion");
+//    .define(ConfigName.CAST_TYPE, ConfigDef.Type.STRING, ConfigDef.NO_DEFAULT_VALUE, ConfigDef.Importance.HIGH, "Conversion type");
 
-  private static final String PURPOSE = "adding UUID to record";
+  private static final String PURPOSE = "Convert TiDB data type to downstream";
 
   private String fieldName;
+//  private String convType;
 
   private Cache<Schema, Schema> schemaUpdateCache;
 
@@ -64,7 +66,8 @@ public abstract class TiDB<R extends ConnectRecord<R>> implements Transformation
   public void configure(Map<String, ?> props) {
     logger.info("********** 02. into the configure function");
     final SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
-    fieldName = config.getString(ConfigName.UUID_FIELD_NAME);
+    fieldName = config.getString(ConfigName.FIELD_NAME);
+    // convType = config.getString(ConfigName.CAST_TYPE);
 
     schemaUpdateCache = new SynchronizedCache<>(new LRUCache<Schema, Schema>(16));
   }
@@ -165,7 +168,7 @@ public abstract class TiDB<R extends ConnectRecord<R>> implements Transformation
 
   protected abstract R newRecord(R record, Schema updatedSchema, Object updatedValue);
 
-  public static class Key<R extends ConnectRecord<R>> extends TiDB<R> {
+  public static class Key<R extends ConnectRecord<R>> extends TiDBTransform<R> {
 
     @Override
     protected Schema operatingSchema(R record) {
@@ -184,7 +187,7 @@ public abstract class TiDB<R extends ConnectRecord<R>> implements Transformation
 
   }
 
-  public static class Value<R extends ConnectRecord<R>> extends TiDB<R> {
+  public static class Value<R extends ConnectRecord<R>> extends TiDBTransform<R> {
 
     @Override
     protected Schema operatingSchema(R record) {
