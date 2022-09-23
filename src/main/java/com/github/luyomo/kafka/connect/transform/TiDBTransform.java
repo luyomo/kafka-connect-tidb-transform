@@ -48,7 +48,7 @@ public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Trans
 
   private interface ConfigName {
     String FIELD_NAME = "field.name";
-    String CAST_TYPE = "type";
+    String CAST_TYPE = "cast.type";
   }
 
   public static final ConfigDef CONFIG_DEF = new ConfigDef()
@@ -115,7 +115,8 @@ public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Trans
       logger.info("***** 006. The field name is <{}>", field.name());
       if(field.name().equals("t_bit"))  {
           logger.info("Setting the data as bit");
-          updatedValue.put(field.name(), true);
+          logger.info("The data from the original field {} and {} ", field.name(), value.get(field));
+          updatedValue.put(field.name(), "1");
           logger.info("Reached the data set");
       }else{
           updatedValue.put(field.name(), value.get(field));
@@ -151,7 +152,7 @@ public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Trans
     for (Field field: schema.fields()) {
       logger.info("The field name is: <{}>, schema is: <{}>", field.name(), field.schema());
       if (field.name().equals("t_bit") ) {
-          builder.field(field.name(), Schema.BOOLEAN_SCHEMA);
+          builder.field(field.name(), Schema.STRING_SCHEMA);
       } else {
           builder.field(field.name(), field.schema());
       }
