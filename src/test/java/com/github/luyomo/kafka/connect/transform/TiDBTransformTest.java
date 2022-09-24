@@ -25,6 +25,8 @@ import org.apache.kafka.connect.source.SourceRecord;
 import org.junit.After;
 import org.junit.Test;
 
+import java.nio.ByteBuffer;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -43,6 +45,8 @@ public class TiDBTransformTest {
   @Test(expected = DataException.class)
   public void topLevelStructRequired() {
     xform.configure(Collections.singletonMap("field.name", "t_bit"));
+    xform.configure(Collections.singletonMap("field.length", "10"));
+    xform.configure(Collections.singletonMap("cast.type", "BIT"));
     xform.apply(new SourceRecord(null, null, "", 0, Schema.INT32_SCHEMA, 42));
   }
 
@@ -50,6 +54,13 @@ public class TiDBTransformTest {
   public void copySchemaAndTiDBField() {
     final Map<String, Object> props = new HashMap<>();
     System.out.println("\n\n\n\nHello world in the copySchemaAndTiDBField \n\n\n");
+
+    // java.nio.HeapByteBuffer[pos=0 lim=1 cap=1]
+    ByteBuffer buffer = ByteBuffer.allocate(1);
+    System.out.println("---->position:\t" + buffer.position() + "\n---->limit:\t" + buffer.limit() + "\n---->capacity:\t" + buffer.capacity());
+    buffer.put("h".getBytes());
+    System.out.println("---->position:\t" + buffer.position() + "\n---->limit:\t" + buffer.limit() + "\n---->capacity:\t" + buffer.capacity());
+
 
     props.put("field.name", "t_bit");
 

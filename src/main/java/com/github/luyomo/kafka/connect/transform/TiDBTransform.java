@@ -26,6 +26,8 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 
+import java.nio.charset.Charset;
+
 import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.util.SchemaUtil;
 import org.apache.kafka.connect.transforms.util.SimpleConfig;
@@ -40,6 +42,12 @@ import java.util.UUID;
 import static org.apache.kafka.connect.transforms.util.Requirements.requireMap;
 import static org.apache.kafka.connect.transforms.util.Requirements.requireStruct;
 
+
+import java.nio.ByteBuffer;
+import org.apache.kafka.common.utils.Utils;
+import java.util.Base64;
+import java.math.BigInteger;
+
 public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Transformation<R> {
   private static final Logger logger = LoggerFactory.getLogger(TiDBTransform.class);
 
@@ -49,16 +57,20 @@ public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Trans
   private interface ConfigName {
     String FIELD_NAME = "field.name";
     String CAST_TYPE = "cast.type";
+    String FIELD_LENGTH = "field.length";
   }
 
   public static final ConfigDef CONFIG_DEF = new ConfigDef()
-    .define(ConfigName.FIELD_NAME, ConfigDef.Type.STRING, ConfigDef.NO_DEFAULT_VALUE, ConfigDef.Importance.HIGH, "Field name for conversion");
-//    .define(ConfigName.CAST_TYPE, ConfigDef.Type.STRING, ConfigDef.NO_DEFAULT_VALUE, ConfigDef.Importance.HIGH, "Conversion type");
+    .define(ConfigName.FIELD_NAME, ConfigDef.Type.STRING, ConfigDef.NO_DEFAULT_VALUE, ConfigDef.Importance.HIGH, "Field name for conversion")
+    .define(ConfigName.FIELD_LENGTH, ConfigDef.Type.STRING, ConfigDef.NO_DEFAULT_VALUE, ConfigDef.Importance.HIGH, "Field length")
+    .define(ConfigName.CAST_TYPE, ConfigDef.Type.STRING, ConfigDef.NO_DEFAULT_VALUE, ConfigDef.Importance.HIGH, "Conversion type")
+    ;
 
   private static final String PURPOSE = "Convert TiDB data type to downstream";
 
   private String fieldName;
-//  private String convType;
+  private String fieldLength;
+  private String convType;
 
   private Cache<Schema, Schema> schemaUpdateCache;
 
@@ -67,6 +79,12 @@ public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Trans
     logger.info("********** 02. into the configure function");
     final SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
     fieldName = config.getString(ConfigName.FIELD_NAME);
+    fieldLength = config.getString(ConfigName.FIELD_LENGTH);
+    convType = config.getString(ConfigName.CAST_TYPE);
+    logger.info("The config field name is {}", fieldName);
+    logger.info("The config field length is {}", fieldLength);
+    logger.info("The config cast type is {}", convType);
+
     // convType = config.getString(ConfigName.CAST_TYPE);
 
     schemaUpdateCache = new SynchronizedCache<>(new LRUCache<Schema, Schema>(16));
@@ -118,7 +136,30 @@ public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Trans
           logger.info("The data from the original field {} and {} ", field.name(), value.get(field));
           updatedValue.put(field.name(), "1");
           logger.info("Reached the data set");
+      }else if(field.name().equals("t_bit02")){
+//           String binaryStr = new BigInteger(1, test02).toString(2);
+          StringBuilder sb = new StringBuilder();
+          if (value.get(field) instanceof ByteBuffer) {
+              logger.info("The field {} is a ByteBuffer", field.name());
+              ByteBuffer byteBuffer = (ByteBuffer) value.get(field);
+              // String test02 = Base64.getEncoder().encodeToString(Utils.readBytes(byteBuffer));
+              byte []test02 = Utils.readBytes(byteBuffer);
+              for (int i = 0; i < test02.length; i++){
+              //     logger.info("The byte before decoding is {} ", test02[i]);
+                   String temp = new BigInteger(1, new byte[] { test02[i] }).toString(2);
+                   // String temp = Integer.toBinaryString(test02[i]);
+                   sb.append(String.format("%4s", temp).replace(" ", "0"));
+              }
+              logger.info("The decoded value is {}", String.format("%" + fieldLength + "s",  sb).replace(" ", "0") );
+          }else{
+              logger.info("The field {} is not a ByteBuffer", field.name());
+          }
+          logger.info("The data from the original t_bit02 field {} and {} ", field.name(), value.get(field));
+          // updatedValue.put(field.name(), "1010101010");
+          updatedValue.put(field.name(),  String.format("%" + fieldLength + "s",  sb).replace(" ", "0") );
+          logger.info("Reached the data set");
       }else{
+          logger.info("The data(Not bit) from the original field {} and {} ", field.name(), value.get(field));
           updatedValue.put(field.name(), value.get(field));
       }
 
@@ -151,7 +192,7 @@ public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Trans
 
     for (Field field: schema.fields()) {
       logger.info("The field name is: <{}>, schema is: <{}>", field.name(), field.schema());
-      if (field.name().equals("t_bit") ) {
+      if(field.name().equals("t_bit") || field.name().equals("t_bit02"))  {
           builder.field(field.name(), Schema.STRING_SCHEMA);
       } else {
           builder.field(field.name(), field.schema());
