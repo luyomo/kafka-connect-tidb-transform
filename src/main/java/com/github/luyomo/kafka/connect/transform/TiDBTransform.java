@@ -58,14 +58,14 @@ public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Trans
 
   private interface ConfigName {
     String FIELD_NAME = "field.name";
-    String CAST_TYPE = "cast.type";
+    String FIELD_TYPE = "field.type";
     String FIELD_LENGTH = "field.length";
   }
 
   public static final ConfigDef CONFIG_DEF = new ConfigDef()
     .define(ConfigName.FIELD_NAME, ConfigDef.Type.LIST, Collections.emptyList(), ConfigDef.Importance.HIGH, "Field name for conversion")
     .define(ConfigName.FIELD_LENGTH, ConfigDef.Type.LIST, Collections.emptyList(), ConfigDef.Importance.HIGH, "Field length")
-    .define(ConfigName.CAST_TYPE, ConfigDef.Type.STRING, ConfigDef.NO_DEFAULT_VALUE, ConfigDef.Importance.LOW, "Conversion type")
+    .define(ConfigName.FIELD_TYPE, ConfigDef.Type.LIST, Collections.emptyList(), ConfigDef.Importance.HIGH, "Conversion type")
     ;
 
   private static final String PURPOSE = "Convert TiDB data type to downstream";
@@ -74,7 +74,7 @@ public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Trans
   // private String fieldLength;
   private List<String> fieldName;
   private List<String> fieldLength;
-  private String convType;
+  private List<String> fieldType;
 
   private Cache<Schema, Schema> schemaUpdateCache;
 
@@ -84,10 +84,10 @@ public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Trans
     final SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
     fieldName = config.getList(ConfigName.FIELD_NAME);
     fieldLength = config.getList(ConfigName.FIELD_LENGTH);
-    convType = config.getString(ConfigName.CAST_TYPE);
+    fieldType = config.getList(ConfigName.FIELD_TYPE);
     logger.info("The config field name is {}", fieldName);
     logger.info("The config field length is {}", fieldLength);
-    logger.info("The config cast type is {}", convType);
+    logger.info("The config cast type is {}", fieldType);
 
     // convType = config.getString(ConfigName.CAST_TYPE);
 
@@ -139,36 +139,42 @@ public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Trans
           logger.info("**** Starting to replace the time");
           int index = fieldName.indexOf(field.name());
 //           String binaryStr = new BigInteger(1, test02).toString(2);
-          String updatedBitValue = new String();
-          StringBuilder sb = new StringBuilder();
-          String length = fieldLength.get(index);
+          String theFieldType = fieldType.get(index);
+          if (theFieldType.equals("BIT")) {
+              String updatedBitValue = new String();
+              StringBuilder sb = new StringBuilder();
+              String length = fieldLength.get(index);
 
-          if (value.get(field) instanceof ByteBuffer) {
-              logger.info("The field {} is a ByteBuffer", field.name());
-              ByteBuffer byteBuffer = (ByteBuffer) value.get(field);
-              // String test02 = Base64.getEncoder().encodeToString(Utils.readBytes(byteBuffer));
-              byte []test02 = Utils.readBytes(byteBuffer);
-              for (int i = 0; i < test02.length; i++){
-              //     logger.info("The byte before decoding is {} ", test02[i]);
-                   String temp = new BigInteger(1, new byte[] { test02[i] }).toString(2);
-                   // String temp = Integer.toBinaryString(test02[i]);
-                   sb.append(String.format("%4s", temp).replace(" ", "0"));
-              }
-              if (sb.length() > Integer.parseInt(length) ) {
-                  updatedBitValue = sb.substring(sb.length() - Integer.parseInt(length) );
-                  logger.info("The decoded value is {}", sb.substring(sb.length() - Integer.parseInt(length) ) );
+              if (value.get(field) instanceof ByteBuffer) {
+                  logger.info("The field {} is a ByteBuffer", field.name());
+                  ByteBuffer byteBuffer = (ByteBuffer) value.get(field);
+                  // String test02 = Base64.getEncoder().encodeToString(Utils.readBytes(byteBuffer));
+                  byte []test02 = Utils.readBytes(byteBuffer);
+                  for (int i = 0; i < test02.length; i++){
+                  //     logger.info("The byte before decoding is {} ", test02[i]);
+                       String temp = new BigInteger(1, new byte[] { test02[i] }).toString(2);
+                       // String temp = Integer.toBinaryString(test02[i]);
+                       sb.append(String.format("%4s", temp).replace(" ", "0"));
+                  }
+                  if (sb.length() > Integer.parseInt(length) ) {
+                      updatedBitValue = sb.substring(sb.length() - Integer.parseInt(length) );
+                      logger.info("The decoded value is {}", sb.substring(sb.length() - Integer.parseInt(length) ) );
+                  }else{
+                      updatedBitValue = String.format("%" + length + "s",  sb).replace(" ", "0");
+                      logger.info("The decoded value is {}", String.format("%" + length + "s",  sb).replace(" ", "0") );
+                  }
               }else{
-                  updatedBitValue = String.format("%" + length + "s",  sb).replace(" ", "0");
-                  logger.info("The decoded value is {}", String.format("%" + length + "s",  sb).replace(" ", "0") );
+                  logger.info("The field {} is not a ByteBuffer", field.name());
               }
-          }else{
-              logger.info("The field {} is not a ByteBuffer", field.name());
+              logger.info("The data from the original t_bit02 field {} and {} ", field.name(), value.get(field));
+              // updatedValue.put(field.name(), "1010101010");
+              // updatedValue.put(field.name(),  String.format("%" + fieldLength + "s",  sb).replace(" ", "0") );
+              updatedValue.put(field.name(),  updatedBitValue  );
+              logger.info("Reached the data set");
+          } else if (theFieldType == "ENUM"){
+              logger.info("Starting to convert the enum type");
+              updatedValue.put(field.name(), value.get(field));
           }
-          logger.info("The data from the original t_bit02 field {} and {} ", field.name(), value.get(field));
-          // updatedValue.put(field.name(), "1010101010");
-          // updatedValue.put(field.name(),  String.format("%" + fieldLength + "s",  sb).replace(" ", "0") );
-          updatedValue.put(field.name(),  updatedBitValue  );
-          logger.info("Reached the data set");
       }else{
           logger.info("The data(Not bit) from the original field {} and {} ", field.name(), value.get(field));
           updatedValue.put(field.name(), value.get(field));
