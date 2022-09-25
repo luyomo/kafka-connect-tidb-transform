@@ -70,8 +70,6 @@ public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Trans
 
   private static final String PURPOSE = "Convert TiDB data type to downstream";
 
-  // private String fieldName;
-  // private String fieldLength;
   private List<String> fieldName;
   private List<String> fieldLength;
   private List<String> fieldType;
@@ -80,16 +78,11 @@ public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Trans
 
   @Override
   public void configure(Map<String, ?> props) {
-    logger.info("********** 02. into the configure function");
     final SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
     fieldName = config.getList(ConfigName.FIELD_NAME);
     fieldLength = config.getList(ConfigName.FIELD_LENGTH);
     fieldType = config.getList(ConfigName.FIELD_TYPE);
-    logger.info("The config field name is {}", fieldName);
-    logger.info("The config field length is {}", fieldLength);
-    logger.info("The config cast type is {}", fieldType);
-
-    // convType = config.getString(ConfigName.CAST_TYPE);
+    logger.info("The config info: field name: {}, field type: {}, field length: {}", fieldName, fieldType, fieldLength);
 
     schemaUpdateCache = new SynchronizedCache<>(new LRUCache<Schema, Schema>(16));
   }
@@ -97,7 +90,6 @@ public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Trans
 
   @Override
   public R apply(R record) {
-//    logger.info("********** 02. This is the test message for logging <{}>", record.toString());
     if (operatingSchema(record) == null) {
       return applySchemaless(record);
     } else {
@@ -110,24 +102,19 @@ public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Trans
 
     final Map<String, Object> updatedValue = new HashMap<>(value);
 
-    // updatedValue.put(fieldName, getRandomUuid());
 
     return newRecord(record, null, updatedValue);
   }
 
   private R applyWithSchema(R record) {
     final Struct value = requireStruct(operatingValue(record), PURPOSE);
-    logger.info("********** 02. The schema from applyWithSchema <{}>", value.schema().toString());
-    logger.info("***** 001. The value is {}", value);
+    logger.info("applyWithSchema: schema: <{}>", value.schema().toString());
+    logger.info("values from parameter: <{}>", value);
 
     Schema updatedSchema = schemaUpdateCache.get(value.schema());
-    logger.info("****** 002.  The schema 0001 <{}>", updatedSchema);
     if(updatedSchema == null) {
-      logger.info("002.01 The schema here is {}", value.schema()); 
       updatedSchema = makeUpdatedSchema(value.schema());
-      logger.info("***** 003. The schema before add: <{}>", updatedSchema.toString());
       schemaUpdateCache.put(value.schema(), updatedSchema);
-      logger.info("***** 004. The schema into cache add: <{}>", schemaUpdateCache.toString());
     }
 
     logger.info("********** 005. The data before add value <{}>", updatedSchema.toString());
@@ -138,7 +125,6 @@ public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Trans
       if (fieldName.contains(field.name())) {
           logger.info("**** Starting to replace the time");
           int index = fieldName.indexOf(field.name());
-//           String binaryStr = new BigInteger(1, test02).toString(2);
           String theFieldType = fieldType.get(index);
           if (theFieldType.equals("BIT")) {
               String updatedBitValue = new String();
@@ -148,7 +134,6 @@ public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Trans
               if (value.get(field) instanceof ByteBuffer) {
                   logger.info("The field {} is a ByteBuffer", field.name());
                   ByteBuffer byteBuffer = (ByteBuffer) value.get(field);
-                  // String test02 = Base64.getEncoder().encodeToString(Utils.readBytes(byteBuffer));
                   byte []test02 = Utils.readBytes(byteBuffer);
                   for (int i = 0; i < test02.length; i++){
                   //     logger.info("The byte before decoding is {} ", test02[i]);
@@ -167,57 +152,18 @@ public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Trans
                   logger.info("The field {} is not a ByteBuffer", field.name());
               }
               logger.info("The data from the original t_bit02 field {} and {} ", field.name(), value.get(field));
-              // updatedValue.put(field.name(), "1010101010");
-              // updatedValue.put(field.name(),  String.format("%" + fieldLength + "s",  sb).replace(" ", "0") );
               updatedValue.put(field.name(),  updatedBitValue  );
               logger.info("Reached the data set");
-          } else if (theFieldType == "ENUM"){
+          } else if (theFieldType.equals("ENUM")){
               logger.info("Starting to convert the enum type");
+              logger.info("The value of set is {}", value.get(field));
               updatedValue.put(field.name(), value.get(field));
           }
       }else{
           logger.info("The data(Not bit) from the original field {} and {} ", field.name(), value.get(field));
           updatedValue.put(field.name(), value.get(field));
       }
-
-//      // if(field.name().equals("t_bit"))  {
-//      if( fieldName.contains(field.name()))  {
-//          logger.info("Setting the data as bit");
-//          logger.info("The data from the original field {} and {} ", field.name(), value.get(field));
-//          updatedValue.put(field.name(), "1");
-//          logger.info("Reached the data set");
-//      }else if(field.name().equals("t_bit02")){
-////           String binaryStr = new BigInteger(1, test02).toString(2);
-//          StringBuilder sb = new StringBuilder();
-//          if (value.get(field) instanceof ByteBuffer) {
-//              logger.info("The field {} is a ByteBuffer", field.name());
-//              ByteBuffer byteBuffer = (ByteBuffer) value.get(field);
-//              // String test02 = Base64.getEncoder().encodeToString(Utils.readBytes(byteBuffer));
-//              byte []test02 = Utils.readBytes(byteBuffer);
-//              for (int i = 0; i < test02.length; i++){
-//              //     logger.info("The byte before decoding is {} ", test02[i]);
-//                   String temp = new BigInteger(1, new byte[] { test02[i] }).toString(2);
-//                   // String temp = Integer.toBinaryString(test02[i]);
-//                   sb.append(String.format("%4s", temp).replace(" ", "0"));
-//              }
-//              logger.info("The decoded value is {}", String.format("%" + fieldLength + "s",  sb).replace(" ", "0") );
-//          }else{
-//              logger.info("The field {} is not a ByteBuffer", field.name());
-//          }
-//          logger.info("The data from the original t_bit02 field {} and {} ", field.name(), value.get(field));
-//          // updatedValue.put(field.name(), "1010101010");
-//          updatedValue.put(field.name(),  String.format("%" + fieldLength + "s",  sb).replace(" ", "0") );
-//          logger.info("Reached the data set");
-//      }else{
-//          logger.info("The data(Not bit) from the original field {} and {} ", field.name(), value.get(field));
-//          updatedValue.put(field.name(), value.get(field));
-//      }
-//
     }
-
-    // logger.info("********** 008. The data before add value <{}>", updatedValue.toString());
-    // updatedValue.put(fieldName, getRandomUuid());
-    // :logger.info("********** 02. This is the test message after data update <{}>", updatedValue.toString());
 
     return newRecord(record, updatedSchema, updatedValue);
   }
@@ -233,24 +179,17 @@ public abstract class TiDBTransform<R extends ConnectRecord<R>> implements Trans
     schemaUpdateCache = null;
   }
 
-  private String getRandomUuid() {
-    return UUID.randomUUID().toString();
-  }
-
   private Schema makeUpdatedSchema(Schema schema) {
     final SchemaBuilder builder = SchemaUtil.copySchemaBasics(schema, SchemaBuilder.struct());
 
     for (Field field: schema.fields()) {
       logger.info("The field name is: <{}>, schema is: <{}>", field.name(), field.schema());
-      // if(field.name().equals("t_bit") || field.name().equals("t_bit02"))  {
       if( fieldName.contains(field.name()))  {
           builder.field(field.name(), Schema.STRING_SCHEMA);
       } else {
           builder.field(field.name(), field.schema());
       }
     }
-
-    // builder.field(fieldName, Schema.STRING_SCHEMA);
 
     return builder.build();
   }
